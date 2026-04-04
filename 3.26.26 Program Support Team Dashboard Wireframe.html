@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summer Program Monitoring Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Prop Types (Required for Recharts) -->
+    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Recharts -->
+    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .glass-panel {
+            background: white;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+        }
+        .kpi-card {
+            transition: all 0.2s;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+    // --- CONSOLE WARNING SUPPRESSION ---
+    // Recharts uses defaultProps which generates warnings in React 18. 
+    // This filters them out to keep the demo clean.
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+        if (typeof args[0] === 'string' && /defaultProps/.test(args[0])) return;
+        originalConsoleError(...args);
+    };
+
+    const { useState, useMemo } = React;
+    const { 
+        PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis 
+    } = Recharts;
+
+    // --- INLINE ICONS (To avoid external dependency issues) ---
+    const Icons = {
+        LayoutDashboard: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        ),
+        CheckCircle2: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+        ),
+        AlertCircle: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+        ),
+        Clock: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        ),
+        ChevronDown: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m6 9 6 6 6-6"/></svg>
+        ),
+        ChevronRight: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m9 18 6-6-6-6"/></svg>
+        ),
+        Filter: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        ),
+        Users: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        ),
+        School: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v4"/><path d="M18 5v17"/><path d="M6 5v17"/><circle cx="12" cy="9" r="2"/></svg>
+        ),
+        FileText: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+        ),
+        ClipboardList: (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+        )
+    };
+
+    const { 
+        LayoutDashboard, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Filter, Users, School, FileText, ClipboardList
+    } = Icons;
+
+    // --- MOCKED DATA FROM CSV ---
+    // A subset of the provided data for demonstration
+    const rawData = [
+        { id: 1, site: "University Prep Academy Mark Murray", grantee: "University Prep Schools", type: "Multisite", po: "Aeriell", enrolled: 202, preEla: 1.03, preMath: 1.02, postEla: 0.83, postMath: 0.82, status: "Complete", studentPre: 0.98, studentPost: 0.85, educatorStatus: "Meets Expectations", familyStatus: "Meets Expectations" },
+        { id: 2, site: "University Prep Middle School", grantee: "University Prep Schools", type: "Multisite", po: "Aeriell", enrolled: 98, preEla: 1.25, preMath: 1.22, postEla: 0.88, postMath: 0.86, status: "Complete", studentPre: 0.98, studentPost: 0.54, educatorStatus: "Meets Expectations", familyStatus: "Does Not Meet Expectations" },
+        { id: 3, site: "Center Line Preparatory Academy", grantee: "Center Line Prep Academy", type: "Single Site", po: "Aeriell", enrolled: 83, preEla: 0.97, preMath: 1.00, postEla: 0.84, postMath: 0.81, status: "Complete", studentPre: 0.53, studentPost: 0.20, educatorStatus: "Meets Expectations", familyStatus: "On Track" },
+        { id: 4, site: "Eastpointe Middle School", grantee: "Eastpointe Community Schools", type: "Single Site", po: "Aeriell", enrolled: 303, preEla: 1.21, preMath: 1.26, postEla: 1.05, postMath: 1.04, status: "Complete", studentPre: 0.95, studentPost: 0.19, educatorStatus: "Meets Expectations", familyStatus: "On Track" },
+        { id: 5, site: "Detroit Academy of Arts and Sciences", grantee: "Detroit Academy of Arts & Sciences", type: "Single Site", po: "Aeriell", enrolled: 320, preEla: 0.90, preMath: 0.88, postEla: 0.75, postMath: 0.72, status: "Complete", studentPre: 0.88, studentPost: 0.13, educatorStatus: "On Track", familyStatus: "Does Not Meet Expectations" },
+        { id: 6, site: "Regent Park Scholars Academy", grantee: "Regent Park Scholars Academy", type: "Single Site", po: "Ayanna", enrolled: 110, preEla: 1.23, preMath: 1.20, postEla: 0.96, postMath: 0.98, status: "Complete", studentPre: 0.74, studentPost: 0.21, educatorStatus: "Meets Expectations", familyStatus: "On Track" },
+        { id: 7, site: "Trix Academy", grantee: "Summer Advantage", type: "Multisite", po: "Ayanna", enrolled: 138, preEla: 1.14, preMath: 1.08, postEla: 1.17, postMath: 1.18, status: "Complete", studentPre: 0.93, studentPost: 0.03, educatorStatus: "Meets Expectations", familyStatus: "Does Not Meet Expectations" },
+        { id: 8, site: "DCP Harper Woods", grantee: "Summer Advantage", type: "Multisite", po: "Ayanna", enrolled: 234, preEla: 0.96, preMath: 0.96, postEla: 0.79, postMath: 0.79, status: "Complete", studentPre: 0.88, studentPost: 0.06, educatorStatus: "Meets Expectations", familyStatus: "Does Not Meet Expectations" },
+        { id: 9, site: "Keys Grace Academy", grantee: "Keys Grace Academy", type: "Single Site", po: "Emma", enrolled: 135, preEla: 1.01, preMath: 1.01, postEla: 0.79, postMath: 0.79, status: "Complete", studentPre: 0.99, studentPost: 0.15, educatorStatus: "Meets Expectations", familyStatus: "Does Not Meet Expectations" },
+        { id: 10, site: "Southfield A&T", grantee: "Southfield Public Schools", type: "Multisite", po: "Emma", enrolled: 211, preEla: 0.80, preMath: 0.82, postEla: 0.68, postMath: 0.71, status: "Complete", studentPre: 0.98, studentPost: 0.15, educatorStatus: "Meets Expectations", familyStatus: "On Track" },
+        { id: 11, site: "Oakland International Academy", grantee: "Oakland International Academy", type: "Single Site", po: "Ayanna", enrolled: 125, preEla: 1.00, preMath: 1.03, postEla: 0.90, postMath: 0.93, status: "Complete", studentPre: 0.94, studentPost: 0.20, educatorStatus: "Meets Expectations", familyStatus: "On Track" },
+        { id: 12, site: "Hamtramck Charter Academy", grantee: "Hamtramck Academy", type: "Single Site", po: "Michelle", enrolled: 131, preEla: 1.07, preMath: 1.08, postEla: 0.90, postMath: 0.90, status: "Complete", studentPre: 0.93, studentPost: 0.27, educatorStatus: "Meets Expectations", familyStatus: "Meets Expectations" },
+        { id: 13, site: "Dearborn High", grantee: "Dearborn Public Schools", type: "Multisite", po: "Mindy", enrolled: 204, preEla: 0.00, preMath: 0.00, postEla: 0.00, postMath: 0.00, status: "Complete", studentPre: 0.85, studentPost: 0.12, educatorStatus: "Does Not Meet Expectations", familyStatus: "Does Not Meet Expectations" },
+        { id: 14, site: "Salina Elementary", grantee: "Dearborn Public Schools", type: "Multisite", po: "Mindy", enrolled: 200, preEla: 0.87, preMath: 0.91, postEla: 0.89, postMath: 0.83, status: "Complete", studentPre: 0.66, studentPost: 0.09, educatorStatus: "Meets Expectations", familyStatus: "Does Not Meet Expectations" },
+        { id: 15, site: "HYPE Athletics", grantee: "HYPE Athletics", type: "Single Site", po: "Mindy", enrolled: 600, preEla: 1.06, preMath: 1.07, postEla: 0.83, postMath: 0.81, status: "Complete", studentPre: 0.88, studentPost: 0.10, educatorStatus: "Meets Expectations", familyStatus: "Does Not Meet Expectations" },
+        { id: 16, site: "Joique Bell Charity (JBC)", grantee: "Joique Bell Charity (JBC)", type: "Single Site", po: "Samantha", enrolled: 147, preEla: 1.36, preMath: 1.36, postEla: 0.84, postMath: 0.83, status: "Complete", studentPre: 0.98, studentPost: 0.10, educatorStatus: "On Track", familyStatus: "Does Not Meet Expectations" },
+        { id: 17, site: "3D Dance Academy", grantee: "3D Dance Academy", type: "Single Site", po: "Samantha", enrolled: 358, preEla: 0.60, preMath: 0.61, postEla: 0.47, postMath: 0.56, status: "Complete", studentPre: 0.89, studentPost: 0.24, educatorStatus: "Meets Expectations", familyStatus: "On Track" },
+    ];
+
+    // Colors for charts
+    const COLORS = {
+        complete: '#10B981', // Green
+        onTrack: '#FBBF24', // Yellow
+        risk: '#EF4444',    // Red
+        primary: '#3B82F6', // Blue
+        secondary: '#6366F1' // Indigo
+    };
+
+    const StatusBadge = ({ status, type = "text" }) => {
+        let colorClass = "bg-gray-100 text-gray-800";
+        let icon = null;
+
+        if (status.includes("Complete") || status.includes("Meets")) {
+            colorClass = "bg-green-100 text-green-800 border border-green-200";
+            icon = <CheckCircle2 size={14} className="mr-1 inline-block" />;
+        } else if (status.includes("On Track")) {
+            colorClass = "bg-yellow-100 text-yellow-800 border border-yellow-200";
+            icon = <Clock size={14} className="mr-1 inline-block" />;
+        } else if (status.includes("Does Not Meet") || status.includes("Risk")) {
+            colorClass = "bg-red-100 text-red-800 border border-red-200";
+            icon = <AlertCircle size={14} className="mr-1 inline-block" />;
+        }
+
+        if (type === "dot") {
+            return (
+                <div className={`w-3 h-3 rounded-full ${colorClass.split(' ')[0]}`}></div>
+            );
+        }
+
+        return (
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+                {icon}
+                {status}
+            </span>
+        );
+    };
+
+    const PercentCell = ({ value }) => {
+        let color = "text-gray-900";
+        if (value >= 0.75) color = "text-green-600 font-bold";
+        else if (value >= 0.60) color = "text-yellow-600 font-medium";
+        else color = "text-red-600 font-bold";
+
+        return <span className={color}>{(value * 100).toFixed(0)}%</span>;
+    };
+
+    const App = () => {
+        const [activeTab, setActiveTab] = useState("assessment"); // assessment | survey
+        const [filters, setFilters] = useState({
+            po: "All",
+            grantee: "All",
+            type: "All"
+        });
+        const [expandedGrantees, setExpandedGrantees] = useState({});
+
+        // --- FILTER LOGIC ---
+        const filteredData = useMemo(() => {
+            return rawData.filter(item => {
+                const matchPo = filters.po === "All" || item.po === filters.po;
+                const matchGrantee = filters.grantee === "All" || item.grantee === filters.grantee;
+                const matchType = filters.type === "All" || item.type === filters.type;
+                return matchPo && matchGrantee && matchType;
+            });
+        }, [filters]);
+
+        // --- AGGREGATIONS FOR TABLES ---
+        const granteeGrouped = useMemo(() => {
+            const groups = {};
+            filteredData.forEach(item => {
+                if (!groups[item.grantee]) {
+                    groups[item.grantee] = {
+                        name: item.grantee,
+                        items: [],
+                        enrolled: 0,
+                        preElaTotal: 0,
+                        preMathTotal: 0,
+                        postElaTotal: 0,
+                        postMathTotal: 0,
+                        studentPreTotal: 0,
+                        studentPostTotal: 0,
+                    };
+                }
+                const g = groups[item.grantee];
+                g.items.push(item);
+                g.enrolled += item.enrolled;
+                g.preElaTotal += item.preEla;
+                g.preMathTotal += item.preMath;
+                g.postElaTotal += item.postEla;
+                g.postMathTotal += item.postMath;
+                g.studentPreTotal += item.studentPre;
+                g.studentPostTotal += item.studentPost;
+            });
+
+            // Calculate averages for the grantee row
+            return Object.values(groups).map(g => ({
+                ...g,
+                preElaAvg: g.preElaTotal / g.items.length,
+                preMathAvg: g.preMathTotal / g.items.length,
+                postElaAvg: g.postElaTotal / g.items.length,
+                postMathAvg: g.postMathTotal / g.items.length,
+                studentPreAvg: g.studentPreTotal / g.items.length,
+                studentPostAvg: g.studentPostTotal / g.items.length,
+                status: g.items.every(i => i.status === "Complete") ? "Complete" : "In Progress"
+            }));
+        }, [filteredData]);
+
+        // --- KPI CALCULATIONS ---
+        const kpis = useMemo(() => {
+            const totalSites = filteredData.length;
+            const totalStudents = filteredData.reduce((acc, curr) => acc + curr.enrolled, 0);
+            const avgPre = filteredData.reduce((acc, curr) => acc + curr.preEla, 0) / totalSites || 0;
+            const avgPost = filteredData.reduce((acc, curr) => acc + curr.postEla, 0) / totalSites || 0;
+            
+            const avgStudentPre = filteredData.reduce((acc, curr) => acc + curr.studentPre, 0) / totalSites || 0;
+            const avgStudentPost = filteredData.reduce((acc, curr) => acc + curr.studentPost, 0) / totalSites || 0;
+            const educatorCompliance = filteredData.filter(i => i.educatorStatus.includes("Meets")).length / totalSites || 0;
+
+            return { totalSites, totalStudents, avgPre, avgPost, avgStudentPre, avgStudentPost, educatorCompliance };
+        }, [filteredData]);
+
+        // --- CHART DATA ---
+        const statusData = [
+            { name: 'Complete', value: filteredData.filter(i => i.status === "Complete").length },
+            { name: 'On Track', value: filteredData.filter(i => i.status === "On Track").length },
+            { name: 'Behind', value: filteredData.filter(i => i.status === "Does Not Meet Expectations").length },
+        ].filter(d => d.value > 0);
+
+        const toggleExpand = (granteeName) => {
+            setExpandedGrantees(prev => ({
+                ...prev,
+                [granteeName]: !prev[granteeName]
+            }));
+        };
+
+        const uniquePos = ["All", ...new Set(rawData.map(d => d.po))];
+        const uniqueGrantees = ["All", ...new Set(rawData.map(d => d.grantee))];
+
+        return (
+            <div className="min-h-screen p-6">
+                
+                {/* HEADER */}
+                <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+                            <LayoutDashboard className="text-blue-600 inline-block" size={28}/> 
+                            Summer Program Monitor
+                        </h1>
+                        <p className="text-gray-500 mt-1">Dashboard for Program Officers</p>
+                    </div>
+                    <div className="flex gap-2 mt-4 md:mt-0 bg-white p-1 rounded-lg border border-gray-200">
+                        <button 
+                            onClick={() => setActiveTab("assessment")}
+                            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors ${activeTab === "assessment" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-50"}`}
+                        >
+                            Assessment Tracker
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab("survey")}
+                            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors ${activeTab === "survey" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-50"}`}
+                        >
+                            Survey Tracker
+                        </button>
+                    </div>
+                </header>
+
+                {/* FILTERS SIDEBAR + CONTENT GRID */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    
+                    {/* SIDEBAR FILTERS */}
+                    <aside className="lg:col-span-3 space-y-4">
+                        <div className="glass-panel p-4">
+                            <div className="flex items-center gap-2 mb-4 text-gray-700 font-semibold border-b pb-2">
+                                <Filter size={18} className="inline-block"/> Filters
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Program Officer</label>
+                                    <select 
+                                        className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={filters.po}
+                                        onChange={(e) => setFilters({...filters, po: e.target.value})}
+                                    >
+                                        {uniquePos.map(po => <option key={po} value={po}>{po}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Grantee</label>
+                                    <select 
+                                        className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={filters.grantee}
+                                        onChange={(e) => setFilters({...filters, grantee: e.target.value})}
+                                    >
+                                        {uniqueGrantees.map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Site Type</label>
+                                    <div className="flex gap-2">
+                                        {["All", "Single Site", "Multisite"].map(type => (
+                                            <button 
+                                                key={type}
+                                                className={`flex-1 py-1.5 text-xs rounded border ${filters.type === type ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                                                onClick={() => setFilters({...filters, type})}
+                                            >
+                                                {type === "Single Site" ? "Single" : type === "Multisite" ? "Multi" : "All"}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* MINI INSTRUCTIONS */}
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800">
+                            <h4 className="font-semibold mb-2 flex items-center gap-2"><AlertCircle size={16} className="inline-block"/> Note</h4>
+                            <p>Click the <strong>(+)</strong> icon in the table tables to drill down from Grantee to Site level.</p>
+                        </div>
+                    </aside>
+
+                    {/* MAIN DASHBOARD CONTENT */}
+                    <main className="lg:col-span-9 space-y-6">
+                        
+                        {/* KPI ROW */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="glass-panel p-4 kpi-card">
+                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total Sites</div>
+                                <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                    <School className="text-blue-500 opacity-80 inline-block" size={24}/>
+                                    {kpis.totalSites}
+                                </div>
+                            </div>
+                            <div className="glass-panel p-4 kpi-card">
+                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">Enrolled Students</div>
+                                <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                    <Users className="text-purple-500 opacity-80 inline-block" size={24}/>
+                                    {kpis.totalStudents}
+                                </div>
+                            </div>
+                            <div className="glass-panel p-4 kpi-card">
+                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">{activeTab === 'assessment' ? 'Avg Pre-Assess %' : 'Student Pre-Survey'}</div>
+                                <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                    <FileText className="text-green-500 opacity-80 inline-block" size={24}/>
+                                    {((activeTab === 'assessment' ? kpis.avgPre : kpis.avgStudentPre) * 100).toFixed(0)}%
+                                </div>
+                            </div>
+                            <div className="glass-panel p-4 kpi-card">
+                                <div className="text-gray-500 text-xs font-bold uppercase mb-1">{activeTab === 'assessment' ? 'Avg Post-Assess %' : 'Student Post-Survey'}</div>
+                                <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                    <ClipboardList className="text-orange-500 opacity-80 inline-block" size={24}/>
+                                    {((activeTab === 'assessment' ? kpis.avgPost : kpis.avgStudentPost) * 100).toFixed(0)}%
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* VISUALS ROW */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="glass-panel p-4 min-h-[300px]">
+                                <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase">
+                                    {activeTab === 'assessment' ? 'Completion Overview' : 'Survey Submission Health'}
+                                </h3>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <PieChart>
+                                        <Pie
+                                            data={statusData}
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {statusData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={[COLORS.complete, COLORS.onTrack, COLORS.risk][index % 3]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <div className="glass-panel p-4 min-h-[300px]">
+                                <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase">
+                                    {activeTab === 'assessment' ? 'Progress by Grantee (Top 5)' : 'Educator vs Family Engagement'}
+                                </h3>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <BarChart data={granteeGrouped.slice(0, 5)}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
+                                        <YAxis hide/>
+                                        <Tooltip />
+                                        <Bar dataKey={activeTab === 'assessment' ? "preElaAvg" : "studentPreAvg"} fill={COLORS.primary} radius={[4, 4, 0, 0]} name="Pre" />
+                                        <Bar dataKey={activeTab === 'assessment' ? "postElaAvg" : "studentPostAvg"} fill={COLORS.secondary} radius={[4, 4, 0, 0]} name="Post" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* DETAIL TABLE (The Complex Part) */}
+                        <div className="glass-panel overflow-hidden">
+                            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                                <h3 className="font-bold text-gray-700">Detailed Tracker</h3>
+                                <span className="text-xs text-gray-500">Showing {filteredData.length} Sites</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
+                                        <tr>
+                                            <th className="px-6 py-3">Hierarchy (Grantee &gt; Site)</th>
+                                            <th className="px-6 py-3 text-center">Enrolled</th>
+                                            
+                                            {activeTab === 'assessment' ? (
+                                                <>
+                                                    <th className="px-6 py-3 text-center">Pre ELA %</th>
+                                                    <th className="px-6 py-3 text-center">Pre Math %</th>
+                                                    <th className="px-6 py-3 text-center">Post ELA %</th>
+                                                    <th className="px-6 py-3 text-center">Post Math %</th>
+                                                    <th className="px-6 py-3 text-center">Status</th>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <th className="px-6 py-3 text-center">Student Pre %</th>
+                                                    <th className="px-6 py-3 text-center">Student Post %</th>
+                                                    <th className="px-6 py-3 text-center">Educator Status</th>
+                                                    <th className="px-6 py-3 text-center">Family Status</th>
+                                                </>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {granteeGrouped.map((grantee) => (
+                                            <React.Fragment key={grantee.name}>
+                                                {/* PARENT ROW (GRANTEE) */}
+                                                <tr className="bg-white hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => toggleExpand(grantee.name)}>
+                                                    <td className="px-6 py-4 font-semibold text-gray-900 flex items-center gap-2">
+                                                        {expandedGrantees[grantee.name] ? 
+                                                            <ChevronDown size={16} className="text-blue-600 inline-block"/> : 
+                                                            <ChevronRight size={16} className="text-gray-400 inline-block"/>
+                                                        }
+                                                        {grantee.name} 
+                                                        <span className="text-xs font-normal text-gray-400 ml-2">({grantee.items.length} sites)</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center font-bold">{grantee.enrolled}</td>
+                                                    
+                                                    {activeTab === 'assessment' ? (
+                                                        <>
+                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.preElaAvg} /></td>
+                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.preMathAvg} /></td>
+                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.postElaAvg} /></td>
+                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.postMathAvg} /></td>
+                                                            <td className="px-6 py-4 text-center"><StatusBadge status={grantee.status} /></td>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.studentPreAvg} /></td>
+                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.studentPostAvg} /></td>
+                                                            <td className="px-6 py-4 text-center text-gray-400 italic">--</td>
+                                                            <td className="px-6 py-4 text-center text-gray-400 italic">--</td>
+                                                        </>
+                                                    )}
+                                                </tr>
+
+                                                {/* CHILD ROWS (SITES) - Only if expanded */}
+                                                {expandedGrantees[grantee.name] && grantee.items.map(site => (
+                                                    <tr key={site.id} className="bg-gray-50 hover:bg-blue-50 transition-colors">
+                                                        <td className="px-6 py-3 pl-12 text-gray-600 border-l-4 border-blue-200 text-xs">
+                                                            {site.site}
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center text-gray-500 text-xs">{site.enrolled}</td>
+                                                        
+                                                        {activeTab === 'assessment' ? (
+                                                            <>
+                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.preEla} /></td>
+                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.preMath} /></td>
+                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.postEla} /></td>
+                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.postMath} /></td>
+                                                                <td className="px-6 py-3 text-center"><StatusBadge status={site.status} type="text"/></td>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.studentPre} /></td>
+                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.studentPost} /></td>
+                                                                <td className="px-6 py-3 text-center"><StatusBadge status={site.educatorStatus} /></td>
+                                                                <td className="px-6 py-3 text-center"><StatusBadge status={site.familyStatus} /></td>
+                                                            </>
+                                                        )}
+                                                    </tr>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </main>
+                </div>
+            </div>
+        );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+
+</script>
+
+</body>
+</html>
