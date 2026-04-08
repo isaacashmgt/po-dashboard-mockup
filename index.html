@@ -287,16 +287,14 @@
         const base = (str.charCodeAt(0) + str.length + index) % 100 / 100; 
         const curriculums = ["Lavinia", "Site-Selected", "Both"];
         
-        const grantAgreementEnrollment = Math.floor(base * 400) + 50;
-        // Simulate that only a few sites (~15%) have final actual enrollment numbers so far
-        const finalActualEnrollment = (index % 7 === 0) ? grantAgreementEnrollment - Math.floor(base * 20) : null;
+        // Simulating actual enrollment directly (not empty anymore)
+        const finalActualEnrollment = Math.floor(base * 400) + 20;
         
         const educatorPct = base > 0.5 ? Math.min(1.0, base + 0.3) : base;
         const familyPct = base > 0.7 ? Math.min(1.0, base + 0.2) : Math.max(0, base - 0.1);
 
         return {
-            enrolled: Math.floor(base * 400) + 20,
-            grantAgreementEnrollment,
+            enrolled: finalActualEnrollment,
             finalActualEnrollment,
             preEla: Math.min(1.0, base + 0.3),
             preMath: Math.min(1.0, base + 0.35),
@@ -408,13 +406,16 @@
             const groups = {};
             filteredData.forEach(item => {
                 if (!groups[item.grantee]) {
+                    // Generate a stable Grant Agreement Enrollment # per grantee
+                    const grantBase = (item.grantee.charCodeAt(0) + item.grantee.length) % 20 + 1;
+                    const grantAgreementEnrollment = (grantBase * 100) + 150; // Stable random number between 250 and 2150
+
                     groups[item.grantee] = {
                         name: item.grantee,
                         items: [],
                         enrolled: 0,
-                        grantAgreementTotal: 0,
+                        grantAgreementTotal: grantAgreementEnrollment,
                         finalActualTotal: 0,
-                        finalActualCount: 0,
                         preElaTotal: 0,
                         preMathTotal: 0,
                         postElaTotal: 0,
@@ -430,11 +431,7 @@
                 const g = groups[item.grantee];
                 g.items.push(item);
                 g.enrolled += item.enrolled;
-                g.grantAgreementTotal += item.grantAgreementEnrollment;
-                if (item.finalActualEnrollment !== null) {
-                    g.finalActualTotal += item.finalActualEnrollment;
-                    g.finalActualCount += 1;
-                }
+                g.finalActualTotal += item.finalActualEnrollment;
                 g.preElaTotal += item.preEla;
                 g.preMathTotal += item.preMath;
                 g.postElaTotal += item.postEla;
@@ -481,12 +478,15 @@
             const avgStudentPost = filteredData.reduce((acc, curr) => acc + curr.studentPost, 0) / totalSites || 0;
             const educatorCompliance = totalSites > 0 ? filteredData.filter(i => i.educatorStatus.includes("Meets")).length / totalSites : 0;
 
-            const avgAttendance = filteredData.reduce((acc, curr) => acc + curr.attendance, 0) / totalSites || 0;
+            const totalGrantEnrollment = granteeGrouped.reduce((acc, curr) => acc + curr.grantAgreementTotal, 0);
+            const totalActualEnrollment = granteeGrouped.reduce((acc, curr) => acc + curr.finalActualTotal, 0);
+            const enrollmentPct = totalGrantEnrollment > 0 ? (totalActualEnrollment / totalGrantEnrollment) : 0;
+            
             const totalBudget = filteredData.reduce((acc, curr) => acc + curr.budget, 0);
             const totalSpent = filteredData.reduce((acc, curr) => acc + curr.spent, 0);
 
-            return { totalSites, totalStudents, avgPre, avgPost, avgStudentPost, educatorCompliance, avgAttendance, totalBudget, totalSpent };
-        }, [filteredData]);
+            return { totalSites, totalStudents, avgPre, avgPost, avgStudentPost, educatorCompliance, enrollmentPct, totalBudget, totalSpent };
+        }, [filteredData, granteeGrouped]);
 
         // --- CHART DATA ---
         const statusData = [
@@ -641,11 +641,11 @@
                             </div>
                             <div className="glass-panel p-4 kpi-card">
                                 <div className="text-gray-500 text-xs font-bold uppercase mb-1">
-                                    {activeTab === 'assessment' ? 'Avg Pre-Assess %' : activeTab === 'survey' ? 'Student Survey %' : 'Avg Attendance'}
+                                    {activeTab === 'assessment' ? 'Avg Pre-Assess %' : activeTab === 'survey' ? 'Student Survey %' : 'Actual Enrollment %'}
                                 </div>
                                 <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                     {activeTab === 'financial' ? <Activity className="text-green-500 opacity-80 inline-block" size={24}/> : <FileText className="text-green-500 opacity-80 inline-block" size={24}/>}
-                                    {((activeTab === 'assessment' ? kpis.avgPre : activeTab === 'survey' ? kpis.avgStudentPost : kpis.avgAttendance) * 100).toFixed(0)}%
+                                    {((activeTab === 'assessment' ? kpis.avgPre : activeTab === 'survey' ? kpis.avgStudentPost : kpis.enrollmentPct) * 100).toFixed(0)}%
                                 </div>
                             </div>
                             <div className="glass-panel p-4 kpi-card">
@@ -702,31 +702,30 @@
                                     <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
                                         <tr>
                                             <th className="px-6 py-3">Grantee Name / Site Names - from BI</th>
-                                            <th className="px-6 py-3 text-center">Final count of students</th>
+                                            <th className="px-6 py-3 text-center">Grant Agreement<br/>Enrollment #</th>
+                                            <th className="px-6 py-3 text-center">Final Actual<br/>Enrollment #</th>
                                             
                                             {activeTab === 'assessment' ? (
                                                 <>
-                                                    <th className="px-6 py-3 text-center">Pre-Program ELA<br/>Interim: % of Assessments Submitted</th>
-                                                    <th className="px-6 py-3 text-center">Pre-Program Math<br/>Interim: % of Assessments Submitted</th>
-                                                    <th className="px-6 py-3 text-center">Post-Program ELA<br/>Final: % of Assessments Submitted</th>
-                                                    <th className="px-6 py-3 text-center">Post-Program Math<br/>Final: % of Assessments Submitted</th>
+                                                    <th className="px-6 py-3 text-center">Pre-Program ELA<br/>Interim %</th>
+                                                    <th className="px-6 py-3 text-center">Pre-Program Math<br/>Interim %</th>
+                                                    <th className="px-6 py-3 text-center">Post-Program ELA<br/>Interim %</th>
+                                                    <th className="px-6 py-3 text-center">Post-Program Math<br/>Interim %</th>
                                                     <th className="px-6 py-3 text-center">Pre/Post-Assessment<br/>Completion Status</th>
                                                 </>
                                             ) : activeTab === 'survey' ? (
                                                 <>
-                                                    <th className="px-6 py-3 text-center">Student Survey<br/>Final: % of Surveys Submitted</th>
-                                                    <th className="px-6 py-3 text-center">Educator Survey<br/>Submission Status &amp; %</th>
-                                                    <th className="px-6 py-3 text-center">Family Survey<br/>Submission Status &amp; %</th>
+                                                    <th className="px-6 py-3 text-center">Student Survey %</th>
+                                                    <th className="px-6 py-3 text-center">Educator Survey %</th>
+                                                    <th className="px-6 py-3 text-center">Family Survey %</th>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <th className="px-6 py-3 text-center">Enrollment Data<br/>Grant Agreement Enrollment #</th>
-                                                    <th className="px-6 py-3 text-center">Enrollment Data<br/>Final Actual Enrollment #</th>
-                                                    <th className="px-6 py-3 text-center">Attendance Data<br/>Final Attendance %</th>
-                                                    <th className="px-6 py-3 text-center">Financial Data<br/>Total Grant Agreement Award</th>
-                                                    <th className="px-6 py-3 text-center">Financial Data<br/>First Disbursement Amount</th>
-                                                    <th className="px-6 py-3 text-center">Financial Data<br/>Second Disbursement Amount</th>
-                                                    <th className="px-6 py-3 text-center">Financial Data<br/>Second Disbursement Sent?</th>
+                                                    <th className="px-6 py-3 text-center">Final Actual<br/>Enrollment %</th>
+                                                    <th className="px-6 py-3 text-center">Grant Agreement<br/>Award</th>
+                                                    <th className="px-6 py-3 text-center">First Disbursement<br/>Amount</th>
+                                                    <th className="px-6 py-3 text-center">Second Disbursement<br/>Amount</th>
+                                                    <th className="px-6 py-3 text-center">Second Disbursement<br/>Sent?</th>
                                                 </>
                                             )}
                                         </tr>
@@ -744,7 +743,8 @@
                                                         {grantee.name} 
                                                         <span className="text-xs font-normal text-gray-400 ml-2">({grantee.items.length} sites)</span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-center font-bold">{grantee.enrolled}</td>
+                                                    <td className="px-6 py-4 text-center font-bold text-gray-700">{grantee.grantAgreementTotal}</td>
+                                                    <td className="px-6 py-4 text-center font-bold text-gray-600">{grantee.finalActualTotal}</td>
                                                     
                                                     {activeTab === 'assessment' ? (
                                                         <>
@@ -758,23 +758,19 @@
                                                         <>
                                                             <td className="px-6 py-4 text-center"><PercentCell value={grantee.studentPostAvg} /></td>
                                                             <td className="px-6 py-4 text-center">
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                    <PercentCell value={grantee.educatorPercentAvg} thresholds={{green: 0.75, yellow: 0.60}} />
-                                                                    <StatusBadge status={grantee.educatorStatus} />
-                                                                </div>
+                                                                <PercentCell value={grantee.educatorPercentAvg} thresholds={{green: 0.75, yellow: 0.60}} />
                                                             </td>
                                                             <td className="px-6 py-4 text-center">
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                    <PercentCell value={grantee.familyPercentAvg} thresholds={{green: 0.25, yellow: 0.15}} />
-                                                                    <StatusBadge status={grantee.familyStatus} />
-                                                                </div>
+                                                                <PercentCell value={grantee.familyPercentAvg} thresholds={{green: 0.25, yellow: 0.15}} />
                                                             </td>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="px-6 py-4 text-center text-gray-700 font-medium">{grantee.grantAgreementTotal}</td>
-                                                            <td className="px-6 py-4 text-center text-gray-700 font-medium">{grantee.finalActualCount > 0 ? grantee.finalActualTotal : '-'}</td>
-                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.attendanceAvg} /></td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                {grantee.grantAgreementTotal > 0 
+                                                                    ? <PercentCell value={grantee.finalActualTotal / grantee.grantAgreementTotal} />
+                                                                    : <span className="text-gray-400 font-medium">-</span>}
+                                                            </td>
                                                             <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.budgetTotal} /></td>
                                                             <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.spentTotal} /></td>
                                                             <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.budgetTotal - grantee.spentTotal} /></td>
@@ -789,7 +785,8 @@
                                                         <td className="px-6 py-3 pl-12 text-gray-600 border-l-4 border-blue-200 text-xs">
                                                             {site.site}
                                                         </td>
-                                                        <td className="px-6 py-3 text-center text-gray-500 text-xs">{site.enrolled}</td>
+                                                        <td className="px-6 py-3 text-center text-gray-400 text-xs">-</td>
+                                                        <td className="px-6 py-3 text-center text-gray-500 text-xs">{site.finalActualEnrollment}</td>
                                                         
                                                         {activeTab === 'assessment' ? (
                                                             <>
@@ -802,24 +799,16 @@
                                                         ) : activeTab === 'survey' ? (
                                                             <>
                                                                 <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.studentPost} /></td>
-                                                                <td className="px-6 py-3 text-center">
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        <PercentCell value={site.educatorPercent} thresholds={{green: 0.75, yellow: 0.60}} />
-                                                                        <StatusBadge status={site.educatorStatus} />
-                                                                    </div>
+                                                                <td className="px-6 py-3 text-center text-xs">
+                                                                    <PercentCell value={site.educatorPercent} thresholds={{green: 0.75, yellow: 0.60}} />
                                                                 </td>
-                                                                <td className="px-6 py-3 text-center">
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        <PercentCell value={site.familyPercent} thresholds={{green: 0.25, yellow: 0.15}} />
-                                                                        <StatusBadge status={site.familyStatus} />
-                                                                    </div>
+                                                                <td className="px-6 py-3 text-center text-xs">
+                                                                    <PercentCell value={site.familyPercent} thresholds={{green: 0.25, yellow: 0.15}} />
                                                                 </td>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <td className="px-6 py-3 text-center text-gray-600">{site.grantAgreementEnrollment}</td>
-                                                                <td className="px-6 py-3 text-center text-gray-600">{site.finalActualEnrollment !== null ? site.finalActualEnrollment : '-'}</td>
-                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.attendance} /></td>
+                                                                <td className="px-6 py-3 text-center text-gray-400 text-xs">-</td>
                                                                 <td className="px-6 py-3 text-center text-xs"><CurrencyCell value={site.budget} /></td>
                                                                 <td className="px-6 py-3 text-center text-xs"><CurrencyCell value={site.spent} /></td>
                                                                 <td className="px-6 py-3 text-center text-xs"><CurrencyCell value={site.budget - site.spent} /></td>
