@@ -23,8 +23,9 @@
 
     <style>
         body {
-            background-color: #f3f4f6;
+            background: #f6f7fb;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #111827;
         }
         .glass-panel {
             background: white;
@@ -38,6 +39,46 @@
         .kpi-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .app-shell {
+            max-width: 1680px;
+            margin: 0 auto;
+        }
+        .control-field {
+            width: 100%;
+            background: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.55rem 0.625rem;
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+        }
+        .control-field:focus {
+            background: #ffffff;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+        }
+        .sticky-head th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .table-scroll {
+            max-height: 68vh;
+        }
+        .progress-track {
+            height: 0.45rem;
+            background: #e5e7eb;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: inherit;
+        }
+        ::selection {
+            background: #bfdbfe;
         }
     </style>
 </head>
@@ -281,20 +322,44 @@
         ["Embrace Sportz: St.Suzanne", "Embrace Sportz", "Single Site", "Samantha"]
     ];
 
+    const washingtonGrantees = [
+        "East Valley School District #90 (Yakima)",
+        "Ellensburg School District",
+        "Grandview School District",
+        "Granger School District",
+        "Mabton School District",
+        "Royal School District",
+        "Sunnyside School District",
+        "Toppenish School District",
+        "Wahluke School District",
+        "Wapato School District",
+        "Yakima School District",
+        "Auburn School District",
+        "Clover Park School District",
+        "Federal Way Public Schools",
+        "Franklin Pierce Schools",
+        "Renton School District",
+        "Seattle Public Schools",
+        "Tukwila School District",
+        "Tacoma Public Schools"
+    ];
+
     // Seeded random-like generation to keep UI stable on re-renders, 
     // ensuring we have realistic mock data for 150+ sites
     const generateRandomData = (str, index) => {
         const base = (str.charCodeAt(0) + str.length + index) % 100 / 100; 
         const curriculums = ["Lavinia", "Site-Selected", "Both"];
         
-        // Simulating actual enrollment directly (not empty anymore)
-        const finalActualEnrollment = Math.floor(base * 400) + 20;
+        const grantAgreementEnrollment = Math.floor(base * 400) + 50;
+        // Simulate that only a few sites (~15%) have final actual enrollment numbers so far
+        const finalActualEnrollment = (index % 7 === 0) ? grantAgreementEnrollment - Math.floor(base * 20) : null;
         
         const educatorPct = base > 0.5 ? Math.min(1.0, base + 0.3) : base;
         const familyPct = base > 0.7 ? Math.min(1.0, base + 0.2) : Math.max(0, base - 0.1);
 
         return {
-            enrolled: finalActualEnrollment,
+            enrolled: Math.floor(base * 400) + 20,
+            grantAgreementEnrollment,
             finalActualEnrollment,
             preEla: Math.min(1.0, base + 0.3),
             preMath: Math.min(1.0, base + 0.35),
@@ -314,17 +379,49 @@
         };
     };
 
-    const rawData = siteMetadata.map((meta, index) => {
+    const michiganData = siteMetadata.map((meta, index) => {
         const stats = generateRandomData(meta[0], index);
         return {
             id: index + 1,
+            state: "Michigan",
             site: meta[0],
             grantee: meta[1],
             type: meta[2],
             po: meta[3],
+            hasData: true,
             ...stats
         };
     });
+
+    const washingtonData = washingtonGrantees.map((name, index) => ({
+        id: siteMetadata.length + index + 1,
+        state: "Washington",
+        site: name,
+        grantee: name,
+        type: "District",
+        po: "Unassigned",
+        hasData: false,
+        enrolled: null,
+        grantAgreementEnrollment: null,
+        finalActualEnrollment: null,
+        preEla: null,
+        preMath: null,
+        postEla: null,
+        postMath: null,
+        status: "No Data",
+        studentPost: null,
+        educatorPercent: null,
+        familyPercent: null,
+        educatorStatus: "No Data",
+        familyStatus: "No Data",
+        attendance: null,
+        budget: null,
+        spent: null,
+        curriculum: "TBD",
+        secondDisbursementSent: "No Data"
+    }));
+
+    const rawData = [...michiganData, ...washingtonData];
 
     // Colors for charts
     const COLORS = {
@@ -339,10 +436,12 @@
         let colorClass = "bg-gray-100 text-gray-800";
         let icon = null;
 
-        if (status.includes("Complete") || status.includes("Meets") || status === "Yes") {
+        if (!status || status === "No Data") {
+            colorClass = "bg-gray-100 text-gray-500 border border-gray-200";
+        } else if (status.includes("Complete") || status.includes("Meets") || status === "Yes") {
             colorClass = "bg-green-100 text-green-800 border border-green-200";
             icon = <CheckCircle2 size={14} className="mr-1 inline-block" />;
-        } else if (status.includes("On Track") || status === "No") {
+        } else if (status.includes("On Track") || status.includes("In Progress") || status === "No") {
             colorClass = "bg-yellow-100 text-yellow-800 border border-yellow-200";
             icon = <Clock size={14} className="mr-1 inline-block" />;
         } else if (status.includes("Does Not Meet") || status.includes("Risk")) {
@@ -365,6 +464,7 @@
     };
 
     const PercentCell = ({ value, thresholds = { green: 0.75, yellow: 0.60 } }) => {
+        if (!Number.isFinite(value)) return <span className="text-gray-400">-</span>;
         let color = "text-gray-900";
         if (value >= thresholds.green) color = "text-green-600 font-bold";
         else if (value >= thresholds.yellow) color = "text-yellow-600 font-medium";
@@ -373,49 +473,79 @@
         return <span className={color}>{(value * 100).toFixed(0)}%</span>;
     };
 
+    const formatNumber = (value) => Number.isFinite(value) ? new Intl.NumberFormat('en-US').format(value) : "-";
+    const formatCurrency = (value) => Number.isFinite(value) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value) : "-";
+    const formatPercent = (value) => `${((value || 0) * 100).toFixed(0)}%`;
+
     const CurrencyCell = ({ value }) => {
-        const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+        const formatted = formatCurrency(value);
         return <span className="text-gray-700 font-medium">{formatted}</span>;
+    };
+
+    const ProgressBar = ({ value, thresholds = { green: 0.75, yellow: 0.60 } }) => {
+        const color = value >= thresholds.green ? "bg-green-500" : value >= thresholds.yellow ? "bg-amber-400" : "bg-red-500";
+        return (
+            <div className="min-w-[88px]">
+                <div className="progress-track">
+                    <div className={`progress-fill ${color}`} style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }}></div>
+                </div>
+            </div>
+        );
     };
 
     const App = () => {
         const [activeTab, setActiveTab] = useState("assessment"); // assessment | survey | financial
+        const defaultFilters = {
+            state: "Michigan",
+            po: "All",
+            grantee: "All",
+            site: "All",
+            type: "All",
+            curriculum: "All"
+        };
         const [filters, setFilters] = useState({
+            state: "Michigan",
             po: "All",
             grantee: "All",
             site: "All",
             type: "All",
             curriculum: "All"
         });
+        const [searchTerm, setSearchTerm] = useState("");
         const [expandedGrantees, setExpandedGrantees] = useState({});
 
         // --- FILTER LOGIC ---
         const filteredData = useMemo(() => {
+            const query = searchTerm.trim().toLowerCase();
             return rawData.filter(item => {
+                const matchState = filters.state === "All" || item.state === filters.state;
                 const matchPo = filters.po === "All" || item.po === filters.po;
                 const matchGrantee = filters.grantee === "All" || item.grantee === filters.grantee;
                 const matchSite = filters.site === "All" || item.site === filters.site;
                 const matchType = filters.type === "All" || item.type === filters.type;
                 const matchCurriculum = filters.curriculum === "All" || item.curriculum === filters.curriculum;
-                return matchPo && matchGrantee && matchSite && matchType && matchCurriculum;
+                const matchSearch = !query || `${item.site} ${item.grantee} ${item.po} ${item.state}`.toLowerCase().includes(query);
+                return matchState && matchPo && matchGrantee && matchSite && matchType && matchCurriculum && matchSearch;
             });
-        }, [filters]);
+        }, [filters, searchTerm]);
+
+        const rowsWithData = useMemo(() => {
+            return filteredData.filter(item => item.hasData !== false);
+        }, [filteredData]);
 
         // --- AGGREGATIONS FOR TABLES ---
         const granteeGrouped = useMemo(() => {
             const groups = {};
             filteredData.forEach(item => {
                 if (!groups[item.grantee]) {
-                    // Generate a stable Grant Agreement Enrollment # per grantee
-                    const grantBase = (item.grantee.charCodeAt(0) + item.grantee.length) % 20 + 1;
-                    const grantAgreementEnrollment = (grantBase * 100) + 150; // Stable random number between 250 and 2150
-
                     groups[item.grantee] = {
                         name: item.grantee,
                         items: [],
+                        hasDataCount: 0,
                         enrolled: 0,
-                        grantAgreementTotal: grantAgreementEnrollment,
+                        grantAgreementTotal: 0,
                         finalActualTotal: 0,
+                        finalActualCount: 0,
                         preElaTotal: 0,
                         preMathTotal: 0,
                         postElaTotal: 0,
@@ -430,8 +560,14 @@
                 }
                 const g = groups[item.grantee];
                 g.items.push(item);
+                if (item.hasData === false) return;
+                g.hasDataCount += 1;
                 g.enrolled += item.enrolled;
-                g.finalActualTotal += item.finalActualEnrollment;
+                g.grantAgreementTotal += item.grantAgreementEnrollment;
+                if (item.finalActualEnrollment !== null) {
+                    g.finalActualTotal += item.finalActualEnrollment;
+                    g.finalActualCount += 1;
+                }
                 g.preElaTotal += item.preEla;
                 g.preMathTotal += item.preMath;
                 g.postElaTotal += item.postEla;
@@ -447,53 +583,114 @@
             // Calculate averages for the grantee row, sort sites, and sort grantees alphabetically
             return Object.values(groups).map(g => {
                 g.items.sort((a, b) => a.site.localeCompare(b.site));
-                const educatorPctAvg = g.educatorPctTotal / g.items.length;
-                const familyPctAvg = g.familyPctTotal / g.items.length;
+                const hasData = g.hasDataCount > 0;
+                const divisor = hasData ? g.hasDataCount : 1;
+                const educatorPctAvg = hasData ? g.educatorPctTotal / divisor : null;
+                const familyPctAvg = hasData ? g.familyPctTotal / divisor : null;
                 
                 return {
                     ...g,
-                    preElaAvg: g.preElaTotal / g.items.length,
-                    preMathAvg: g.preMathTotal / g.items.length,
-                    postElaAvg: g.postElaTotal / g.items.length,
-                    postMathAvg: g.postMathTotal / g.items.length,
-                    studentPostAvg: g.studentPostTotal / g.items.length,
+                    hasData,
+                    preElaAvg: hasData ? g.preElaTotal / divisor : null,
+                    preMathAvg: hasData ? g.preMathTotal / divisor : null,
+                    postElaAvg: hasData ? g.postElaTotal / divisor : null,
+                    postMathAvg: hasData ? g.postMathTotal / divisor : null,
+                    studentPostAvg: hasData ? g.studentPostTotal / divisor : null,
                     educatorPercentAvg: educatorPctAvg,
                     familyPercentAvg: familyPctAvg,
-                    educatorStatus: educatorPctAvg >= 0.75 ? "Meets Expectations" : educatorPctAvg >= 0.60 ? "On Track" : "Does Not Meet Expectations",
-                    familyStatus: familyPctAvg >= 0.25 ? "Meets Expectations" : familyPctAvg >= 0.15 ? "On Track" : "Does Not Meet Expectations",
-                    attendanceAvg: g.attendanceTotal / g.items.length,
-                    status: g.items.every(i => i.status === "Complete") ? "Complete" : "In Progress",
-                    secondDisbursementSent: g.items.every(i => i.secondDisbursementSent === "Yes") ? "Yes" : "No"
+                    educatorStatus: !hasData ? "No Data" : educatorPctAvg >= 0.75 ? "Meets Expectations" : educatorPctAvg >= 0.60 ? "On Track" : "Does Not Meet Expectations",
+                    familyStatus: !hasData ? "No Data" : familyPctAvg >= 0.25 ? "Meets Expectations" : familyPctAvg >= 0.15 ? "On Track" : "Does Not Meet Expectations",
+                    attendanceAvg: hasData ? g.attendanceTotal / divisor : null,
+                    status: !hasData ? "No Data" : g.items.every(i => i.status === "Complete") ? "Complete" : "In Progress",
+                    secondDisbursementSent: !hasData ? "No Data" : g.items.every(i => i.secondDisbursementSent === "Yes") ? "Yes" : "No"
                 };
             }).sort((a, b) => a.name.localeCompare(b.name));
         }, [filteredData]);
 
         // --- KPI CALCULATIONS ---
         const kpis = useMemo(() => {
-            const totalSites = filteredData.length;
-            const totalStudents = filteredData.reduce((acc, curr) => acc + curr.enrolled, 0);
-            const avgPre = filteredData.reduce((acc, curr) => acc + curr.preEla, 0) / totalSites || 0;
-            const avgPost = filteredData.reduce((acc, curr) => acc + curr.postEla, 0) / totalSites || 0;
+            const totalSites = rowsWithData.length;
+            const totalStudents = rowsWithData.reduce((acc, curr) => acc + curr.enrolled, 0);
+            const avgPre = rowsWithData.reduce((acc, curr) => acc + curr.preEla, 0) / totalSites || 0;
+            const avgPost = rowsWithData.reduce((acc, curr) => acc + curr.postEla, 0) / totalSites || 0;
             
-            const avgStudentPost = filteredData.reduce((acc, curr) => acc + curr.studentPost, 0) / totalSites || 0;
-            const educatorCompliance = totalSites > 0 ? filteredData.filter(i => i.educatorStatus.includes("Meets")).length / totalSites : 0;
+            const avgStudentPost = rowsWithData.reduce((acc, curr) => acc + curr.studentPost, 0) / totalSites || 0;
+            const educatorCompliance = totalSites > 0 ? rowsWithData.filter(i => i.educatorStatus.includes("Meets")).length / totalSites : 0;
 
-            const totalGrantEnrollment = granteeGrouped.reduce((acc, curr) => acc + curr.grantAgreementTotal, 0);
-            const totalActualEnrollment = granteeGrouped.reduce((acc, curr) => acc + curr.finalActualTotal, 0);
-            const enrollmentPct = totalGrantEnrollment > 0 ? (totalActualEnrollment / totalGrantEnrollment) : 0;
-            
-            const totalBudget = filteredData.reduce((acc, curr) => acc + curr.budget, 0);
-            const totalSpent = filteredData.reduce((acc, curr) => acc + curr.spent, 0);
+            const avgAttendance = rowsWithData.reduce((acc, curr) => acc + curr.attendance, 0) / totalSites || 0;
+            const totalBudget = rowsWithData.reduce((acc, curr) => acc + curr.budget, 0);
+            const totalSpent = rowsWithData.reduce((acc, curr) => acc + curr.spent, 0);
 
-            return { totalSites, totalStudents, avgPre, avgPost, avgStudentPost, educatorCompliance, enrollmentPct, totalBudget, totalSpent };
-        }, [filteredData, granteeGrouped]);
+            return { totalSites, totalStudents, avgPre, avgPost, avgStudentPost, educatorCompliance, avgAttendance, totalBudget, totalSpent };
+        }, [rowsWithData]);
 
         // --- CHART DATA ---
+        const surveyStatusFor = (item) => {
+            const avg = (item.studentPost + item.educatorPercent + item.familyPercent) / 3;
+            if (avg >= 0.75) return "Complete";
+            if (avg >= 0.60) return "On Track";
+            return "Does Not Meet Expectations";
+        };
+
+        const statusSource = activeTab === "survey"
+            ? rowsWithData.map(surveyStatusFor)
+            : rowsWithData.map(i => i.status);
+
         const statusData = [
-            { name: 'Complete', value: filteredData.filter(i => i.status === "Complete").length },
-            { name: 'On Track', value: filteredData.filter(i => i.status === "On Track").length },
-            { name: 'Behind', value: filteredData.filter(i => i.status === "Does Not Meet Expectations").length },
+            { name: 'Complete', value: statusSource.filter(status => status === "Complete").length },
+            { name: 'On Track', value: statusSource.filter(status => status === "On Track").length },
+            { name: 'Behind', value: statusSource.filter(status => status === "Does Not Meet Expectations").length },
         ].filter(d => d.value > 0);
+
+        const surveyHealthData = [
+            { name: 'Student', value: kpis.avgStudentPost },
+            { name: 'Educator', value: rowsWithData.reduce((acc, curr) => acc + curr.educatorPercent, 0) / rowsWithData.length || 0 },
+            { name: 'Family', value: rowsWithData.reduce((acc, curr) => acc + curr.familyPercent, 0) / rowsWithData.length || 0 },
+        ];
+
+        const financialData = [
+            { name: 'Awarded', amount: kpis.totalBudget },
+            { name: 'First Paid', amount: kpis.totalSpent },
+            { name: 'Remaining', amount: Math.max(0, kpis.totalBudget - kpis.totalSpent) },
+        ];
+
+        const poData = Object.values(rowsWithData.reduce((acc, item) => {
+            if (!acc[item.po]) acc[item.po] = { name: item.po, sites: 0, students: 0, budget: 0 };
+            acc[item.po].sites += 1;
+            acc[item.po].students += item.enrolled;
+            acc[item.po].budget += item.budget;
+            return acc;
+        }, {})).sort((a, b) => b.sites - a.sites);
+
+        const attentionList = granteeGrouped.filter(g => g.hasData).map(g => {
+            if (activeTab === "assessment") {
+                const avg = (g.preElaAvg + g.preMathAvg + g.postElaAvg + g.postMathAvg) / 4;
+                return {
+                    name: g.name,
+                    value: avg,
+                    detail: `${g.items.filter(i => i.status === "Does Not Meet Expectations").length} sites behind`,
+                    status: avg >= 0.75 ? "Meets Expectations" : avg >= 0.60 ? "On Track" : "Does Not Meet Expectations"
+                };
+            }
+            if (activeTab === "survey") {
+                const avg = (g.studentPostAvg + g.educatorPercentAvg + g.familyPercentAvg) / 3;
+                return {
+                    name: g.name,
+                    value: avg,
+                    detail: `Family survey ${formatPercent(g.familyPercentAvg)}`,
+                    status: avg >= 0.75 ? "Meets Expectations" : avg >= 0.60 ? "On Track" : "Does Not Meet Expectations"
+                };
+            }
+            const remaining = Math.max(0, g.budgetTotal - g.spentTotal);
+            return {
+                name: g.name,
+                value: g.attendanceAvg,
+                detail: `${formatCurrency(remaining)} remaining`,
+                status: g.secondDisbursementSent === "Yes" ? "Complete" : g.attendanceAvg >= 0.75 ? "On Track" : "Does Not Meet Expectations"
+            };
+        }).sort((a, b) => a.value - b.value).slice(0, 5);
+
+        const activeFilterCount = Object.keys(filters).filter(key => filters[key] !== defaultFilters[key]).length + (searchTerm.trim() ? 1 : 0);
 
         const toggleExpand = (granteeName) => {
             setExpandedGrantees(prev => ({
@@ -502,24 +699,40 @@
             }));
         };
 
-        const uniquePos = ["All", ...new Set(rawData.map(d => d.po))];
-        const uniqueGrantees = ["All", ...new Set(rawData.map(d => d.grantee))];
-        const uniqueSites = ["All", ...new Set(rawData.map(d => d.site))];
-        const uniqueCurriculums = ["All", ...new Set(rawData.map(d => d.curriculum))];
+        const resetFilters = () => {
+            setFilters(defaultFilters);
+            setSearchTerm("");
+        };
+
+        const expandAll = () => {
+            setExpandedGrantees(Object.fromEntries(granteeGrouped.map(g => [g.name, true])));
+        };
+
+        const collapseAll = () => {
+            setExpandedGrantees({});
+        };
+
+        const optionData = rawData.filter(d => filters.state === "All" || d.state === filters.state);
+        const uniqueStates = ["Michigan", "Washington"];
+        const uniquePos = ["All", ...new Set(optionData.map(d => d.po))];
+        const uniqueGrantees = ["All", ...new Set(optionData.map(d => d.grantee))];
+        const uniqueSites = ["All", ...new Set(optionData.map(d => d.site))];
+        const uniqueTypes = ["All", ...new Set(optionData.map(d => d.type))];
+        const uniqueCurriculums = ["All", ...new Set(optionData.map(d => d.curriculum))];
 
         return (
-            <div className="min-h-screen p-6">
+            <div className="min-h-screen p-4 md:p-6 app-shell">
                 
                 {/* HEADER */}
-                <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between">
+                <header className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
                             <LayoutDashboard className="text-blue-600 inline-block" size={28}/> 
                             Summer Program Monitor
                         </h1>
-                        <p className="text-gray-500 mt-1">Dashboard for Program Officers</p>
+                        <p className="text-gray-500 mt-1">Program officer view of assessment, survey, attendance, and disbursement progress</p>
                     </div>
-                    <div className="flex gap-2 mt-4 md:mt-0 bg-white p-1 rounded-lg border border-gray-200">
+                    <div className="flex flex-wrap gap-2 bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
                         <button 
                             onClick={() => setActiveTab("assessment")}
                             className={`px-4 py-2 rounded-md font-medium text-sm transition-colors ${activeTab === "assessment" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-50"}`}
@@ -541,21 +754,66 @@
                     </div>
                 </header>
 
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="glass-panel p-3 flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase text-gray-500">Active Filters</span>
+                        <span className="text-lg font-bold text-blue-700">{activeFilterCount}</span>
+                    </div>
+                    <div className="glass-panel p-3 flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase text-gray-500">Program Officers</span>
+                        <span className="text-lg font-bold text-gray-800">{new Set(filteredData.map(d => d.po)).size}</span>
+                    </div>
+                    <div className="glass-panel p-3 flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase text-gray-500">Grantees Showing</span>
+                        <span className="text-lg font-bold text-gray-800">{granteeGrouped.length}</span>
+                    </div>
+                </div>
+
                 {/* FILTERS SIDEBAR + CONTENT GRID */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     
                     {/* SIDEBAR FILTERS */}
                     <aside className="lg:col-span-3 space-y-4">
                         <div className="glass-panel p-4">
-                            <div className="flex items-center gap-2 mb-4 text-gray-700 font-semibold border-b pb-2">
-                                <Filter size={18} className="inline-block"/> Filters
+                            <div className="flex items-center justify-between gap-2 mb-4 border-b pb-2">
+                                <div className="flex items-center gap-2 text-gray-700 font-semibold">
+                                    <Filter size={18} className="inline-block"/> Filters
+                                </div>
+                                <button
+                                    className="text-xs font-semibold text-blue-700 hover:text-blue-900 disabled:text-gray-300"
+                                    onClick={resetFilters}
+                                    disabled={activeFilterCount === 0}
+                                >
+                                    Reset
+                                </button>
                             </div>
                             
                             <div className="space-y-4">
                                 <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Search</label>
+                                    <input
+                                        className="control-field"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        placeholder="Find grantee, site, or PO"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">State</label>
+                                    <select 
+                                        className="control-field"
+                                        value={filters.state}
+                                        onChange={(e) => setFilters({...defaultFilters, state: e.target.value})}
+                                    >
+                                        {uniqueStates.map(state => <option key={state} value={state}>{state}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Program Officer</label>
                                     <select 
-                                        className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="control-field"
                                         value={filters.po}
                                         onChange={(e) => setFilters({...filters, po: e.target.value})}
                                     >
@@ -566,7 +824,7 @@
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Grantee</label>
                                     <select 
-                                        className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="control-field"
                                         value={filters.grantee}
                                         onChange={(e) => setFilters({...filters, grantee: e.target.value})}
                                     >
@@ -577,7 +835,7 @@
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Site</label>
                                     <select 
-                                        className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="control-field"
                                         value={filters.site}
                                         onChange={(e) => setFilters({...filters, site: e.target.value})}
                                     >
@@ -588,7 +846,7 @@
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Curriculum</label>
                                     <select 
-                                        className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="control-field"
                                         value={filters.curriculum}
                                         onChange={(e) => setFilters({...filters, curriculum: e.target.value})}
                                     >
@@ -599,13 +857,13 @@
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1 uppercase">Site Type</label>
                                     <div className="flex gap-2">
-                                        {["All", "Single Site", "Multisite"].map(type => (
+                                        {uniqueTypes.map(type => (
                                             <button 
                                                 key={type}
                                                 className={`flex-1 py-1.5 text-xs rounded border ${filters.type === type ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300'}`}
                                                 onClick={() => setFilters({...filters, type})}
                                             >
-                                                {type === "Single Site" ? "Single" : type === "Multisite" ? "Multi" : "All"}
+                                                {type === "Single Site" ? "Single" : type === "Multisite" ? "Multi" : type}
                                             </button>
                                         ))}
                                     </div>
@@ -613,10 +871,39 @@
                             </div>
                         </div>
 
+                        {activeTab !== 'financial' && (
+                            <div className="glass-panel p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-bold text-gray-700 uppercase">Needs Attention</h3>
+                                    <span className="text-xs text-gray-400">{activeTab}</span>
+                                </div>
+                                <div className="space-y-3">
+                                    {attentionList.map(item => (
+                                        <div key={item.name} className="border border-gray-100 rounded-md p-3 bg-gray-50">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <div className="text-sm font-semibold text-gray-800 leading-snug">{item.name}</div>
+                                                    <div className="text-xs text-gray-500 mt-1">{item.detail}</div>
+                                                </div>
+                                                <span className="text-sm font-bold text-gray-700">{formatPercent(item.value)}</span>
+                                            </div>
+                                            <div className="mt-3 flex items-center gap-2">
+                                                <ProgressBar value={item.value} />
+                                                <StatusBadge status={item.status} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {attentionList.length === 0 && (
+                                        <div className="text-sm text-gray-500">No matching grantees.</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* MINI INSTRUCTIONS */}
                         <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800">
-                            <h4 className="font-semibold mb-2 flex items-center gap-2"><AlertCircle size={16} className="inline-block"/> Note</h4>
-                            <p>Click the <strong>(+)</strong> icon in the table tables to drill down from Grantee to Site level.</p>
+                            <h4 className="font-semibold mb-2 flex items-center gap-2"><AlertCircle size={16} className="inline-block"/> Monitor Tip</h4>
+                            <p>Use the chevron on each grantee row to drill down to individual sites. The attention list highlights the lowest-performing grantees for the selected tab.</p>
                         </div>
                     </aside>
 
@@ -629,23 +916,23 @@
                                 <div className="text-gray-500 text-xs font-bold uppercase mb-1">Total Sites</div>
                                 <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                     <School className="text-blue-500 opacity-80 inline-block" size={24}/>
-                                    {kpis.totalSites}
+                                    {formatNumber(kpis.totalSites)}
                                 </div>
                             </div>
                             <div className="glass-panel p-4 kpi-card">
                                 <div className="text-gray-500 text-xs font-bold uppercase mb-1">Enrolled Students</div>
                                 <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                     <Users className="text-purple-500 opacity-80 inline-block" size={24}/>
-                                    {kpis.totalStudents}
+                                    {formatNumber(kpis.totalStudents)}
                                 </div>
                             </div>
                             <div className="glass-panel p-4 kpi-card">
                                 <div className="text-gray-500 text-xs font-bold uppercase mb-1">
-                                    {activeTab === 'assessment' ? 'Avg Pre-Assess %' : activeTab === 'survey' ? 'Student Survey %' : 'Actual Enrollment %'}
+                                    {activeTab === 'assessment' ? 'Avg Pre-Assess %' : activeTab === 'survey' ? 'Student Survey %' : 'Avg Attendance'}
                                 </div>
                                 <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                     {activeTab === 'financial' ? <Activity className="text-green-500 opacity-80 inline-block" size={24}/> : <FileText className="text-green-500 opacity-80 inline-block" size={24}/>}
-                                    {((activeTab === 'assessment' ? kpis.avgPre : activeTab === 'survey' ? kpis.avgStudentPost : kpis.enrollmentPct) * 100).toFixed(0)}%
+                                    {formatPercent(activeTab === 'assessment' ? kpis.avgPre : activeTab === 'survey' ? kpis.avgStudentPost : kpis.avgAttendance)}
                                 </div>
                             </div>
                             <div className="glass-panel p-4 kpi-card">
@@ -655,27 +942,34 @@
                                 <div className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                     {activeTab === 'financial' ? <DollarSign className="text-orange-500 opacity-80 inline-block" size={24}/> : <ClipboardList className="text-orange-500 opacity-80 inline-block" size={24}/>}
                                     {activeTab === 'financial' 
-                                        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(kpis.totalBudget)
-                                        : `${((activeTab === 'assessment' ? kpis.avgPost : kpis.educatorCompliance) * 100).toFixed(0)}%`
+                                        ? formatCurrency(kpis.totalBudget)
+                                        : formatPercent(activeTab === 'assessment' ? kpis.avgPost : kpis.educatorCompliance)
                                     }
                                 </div>
                             </div>
                         </div>
 
                         {/* VISUALS ROW */}
-                        {activeTab !== 'financial' && (
-                            <div className="grid grid-cols-1 gap-6">
-                                {/* OVERVIEW PIE CHART */}
-                                <div className="glass-panel p-4 min-h-[300px]">
-                                    <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase">
-                                        {activeTab === 'assessment' ? 'Completion Overview' : 'Survey Submission Health'}
-                                    </h3>
-                                    <ResponsiveContainer width="100%" height={250}>
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            <div className="glass-panel p-4 min-h-[300px]">
+                                <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase">
+                                    {activeTab === 'financial' ? 'Disbursement Summary' : activeTab === 'assessment' ? 'Assessment Completion Overview' : 'Survey Status Mix'}
+                                </h3>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    {activeTab === 'financial' ? (
+                                        <BarChart data={financialData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" />
+                                            <YAxis tickFormatter={(value) => `$${Math.round(value / 1000)}k`} />
+                                            <Tooltip formatter={(value) => formatCurrency(value)} />
+                                            <Bar dataKey="amount" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    ) : (
                                         <PieChart>
                                             <Pie
                                                 data={statusData}
                                                 innerRadius={60}
-                                                outerRadius={80}
+                                                outerRadius={82}
                                                 paddingAngle={5}
                                                 dataKey="value"
                                             >
@@ -686,46 +980,82 @@
                                             <Tooltip />
                                             <Legend />
                                         </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
+                                    )}
+                                </ResponsiveContainer>
                             </div>
-                        )}
+
+                            <div className="glass-panel p-4 min-h-[300px]">
+                                <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase">
+                                    {activeTab === 'survey' ? 'Average Survey Completion' : activeTab === 'financial' ? 'Sites by Program Officer' : 'Sites by Program Officer'}
+                                </h3>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    {activeTab === 'survey' ? (
+                                        <BarChart data={surveyHealthData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" />
+                                            <YAxis tickFormatter={(value) => `${Math.round(value * 100)}%`} domain={[0, 1]} />
+                                            <Tooltip formatter={(value) => formatPercent(value)} />
+                                            <Bar dataKey="value" fill={COLORS.secondary} radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    ) : (
+                                        <BarChart data={poData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="name" />
+                                            <YAxis allowDecimals={false} />
+                                            <Tooltip formatter={(value, name) => [formatNumber(value), name === 'sites' ? 'Sites' : 'Students']} />
+                                            <Bar dataKey="sites" fill={COLORS.secondary} radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    )}
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
 
                         {/* DETAIL TABLE (The Complex Part) */}
                         <div className="glass-panel overflow-hidden">
-                            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                                <h3 className="font-bold text-gray-700">Detailed Tracker</h3>
-                                <span className="text-xs text-gray-500">Showing {filteredData.length} Sites</span>
+                            <div className="p-4 border-b bg-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="font-bold text-gray-700">Detailed Tracker</h3>
+                                    <span className="text-xs text-gray-500">Showing {formatNumber(filteredData.length)} records across {formatNumber(granteeGrouped.length)} grantees</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button className="px-3 py-1.5 text-xs font-semibold rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100" onClick={expandAll}>
+                                        Expand all
+                                    </button>
+                                    <button className="px-3 py-1.5 text-xs font-semibold rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100" onClick={collapseAll}>
+                                        Collapse all
+                                    </button>
+                                </div>
                             </div>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto table-scroll">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
+                                    <thead className="sticky-head text-xs text-gray-500 uppercase bg-gray-50 border-b">
                                         <tr>
-                                            <th className="px-6 py-3">Grantee Name / Site Names - from BI</th>
-                                            <th className="px-6 py-3 text-center">Grant Agreement<br/>Enrollment #</th>
-                                            <th className="px-6 py-3 text-center">Final Actual<br/>Enrollment #</th>
+                                            <th className="px-6 py-3 bg-gray-50">Grantee / Site</th>
+                                            <th className="px-6 py-3 text-center bg-gray-50">Student Count</th>
                                             
                                             {activeTab === 'assessment' ? (
                                                 <>
-                                                    <th className="px-6 py-3 text-center">Pre-Program ELA<br/>Final %</th>
-                                                    <th className="px-6 py-3 text-center">Pre-Program Math<br/>Final %</th>
-                                                    <th className="px-6 py-3 text-center">Post-Program ELA<br/>Final %</th>
-                                                    <th className="px-6 py-3 text-center">Post-Program Math<br/>Final %</th>
-                                                    <th className="px-6 py-3 text-center">Pre/Post-Assessment<br/>Completion Status</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Pre ELA<br/>Submitted</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Pre Math<br/>Submitted</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Post ELA<br/>Submitted</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Post Math<br/>Submitted</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Completion Status</th>
                                                 </>
                                             ) : activeTab === 'survey' ? (
                                                 <>
-                                                    <th className="px-6 py-3 text-center">Final Student Survey %</th>
-                                                    <th className="px-6 py-3 text-center">Educator Survey %</th>
-                                                    <th className="px-6 py-3 text-center">Family Survey %</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Student Survey<br/>Submitted</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Educator Survey<br/>Status &amp; %</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Family Survey<br/>Status &amp; %</th>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <th className="px-6 py-3 text-center">Final Actual<br/>Enrollment %</th>
-                                                    <th className="px-6 py-3 text-center">Grant Agreement<br/>Award</th>
-                                                    <th className="px-6 py-3 text-center">First Disbursement<br/>Amount</th>
-                                                    <th className="px-6 py-3 text-center">Second Disbursement<br/>Amount</th>
-                                                    <th className="px-6 py-3 text-center">Second Disbursement<br/>Sent?</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Agreement<br/>Enrollment</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Final Actual<br/>Enrollment</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Final<br/>Attendance</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Total Award</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">First Paid</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Remaining</th>
+                                                    <th className="px-6 py-3 text-center bg-gray-50">Second Sent?</th>
                                                 </>
                                             )}
                                         </tr>
@@ -741,10 +1071,11 @@
                                                             <ChevronRight size={16} className="text-gray-400 inline-block"/>
                                                         }
                                                         {grantee.name} 
-                                                        <span className="text-xs font-normal text-gray-400 ml-2">({grantee.items.length} sites)</span>
+                                                        <span className="text-xs font-normal text-gray-400 ml-2">
+                                                            {grantee.hasData ? `(${grantee.items.length} sites)` : '(No data)'}
+                                                        </span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-center font-bold text-gray-700">{grantee.grantAgreementTotal}</td>
-                                                    <td className="px-6 py-4 text-center font-bold text-gray-600">{grantee.finalActualTotal}</td>
+                                                    <td className="px-6 py-4 text-center font-bold">{grantee.hasData ? formatNumber(grantee.enrolled) : '-'}</td>
                                                     
                                                     {activeTab === 'assessment' ? (
                                                         <>
@@ -758,35 +1089,38 @@
                                                         <>
                                                             <td className="px-6 py-4 text-center"><PercentCell value={grantee.studentPostAvg} /></td>
                                                             <td className="px-6 py-4 text-center">
-                                                                <PercentCell value={grantee.educatorPercentAvg} thresholds={{green: 0.75, yellow: 0.60}} />
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <PercentCell value={grantee.educatorPercentAvg} thresholds={{green: 0.75, yellow: 0.60}} />
+                                                                    <StatusBadge status={grantee.educatorStatus} />
+                                                                </div>
                                                             </td>
                                                             <td className="px-6 py-4 text-center">
-                                                                <PercentCell value={grantee.familyPercentAvg} thresholds={{green: 0.25, yellow: 0.15}} />
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <PercentCell value={grantee.familyPercentAvg} thresholds={{green: 0.25, yellow: 0.15}} />
+                                                                    <StatusBadge status={grantee.familyStatus} />
+                                                                </div>
                                                             </td>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="px-6 py-4 text-center">
-                                                                {grantee.grantAgreementTotal > 0 
-                                                                    ? <PercentCell value={grantee.finalActualTotal / grantee.grantAgreementTotal} />
-                                                                    : <span className="text-gray-400 font-medium">-</span>}
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.budgetTotal} /></td>
-                                                            <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.spentTotal} /></td>
-                                                            <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.budgetTotal - grantee.spentTotal} /></td>
+                                                            <td className="px-6 py-4 text-center text-gray-700 font-medium">{grantee.hasData ? formatNumber(grantee.grantAgreementTotal) : '-'}</td>
+                                                            <td className="px-6 py-4 text-center text-gray-700 font-medium">{grantee.hasData && grantee.finalActualCount > 0 ? formatNumber(grantee.finalActualTotal) : '-'}</td>
+                                                            <td className="px-6 py-4 text-center"><PercentCell value={grantee.attendanceAvg} /></td>
+                                                            <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.hasData ? grantee.budgetTotal : null} /></td>
+                                                            <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.hasData ? grantee.spentTotal : null} /></td>
+                                                            <td className="px-6 py-4 text-center"><CurrencyCell value={grantee.hasData ? grantee.budgetTotal - grantee.spentTotal : null} /></td>
                                                             <td className="px-6 py-4 text-center"><StatusBadge status={grantee.secondDisbursementSent} /></td>
                                                         </>
                                                     )}
                                                 </tr>
 
                                                 {/* CHILD ROWS (SITES) - Only if expanded */}
-                                                {expandedGrantees[grantee.name] && grantee.items.map(site => (
+                                                {expandedGrantees[grantee.name] && grantee.hasData && grantee.items.map(site => (
                                                     <tr key={site.id} className="bg-gray-50 hover:bg-blue-50 transition-colors">
                                                         <td className="px-6 py-3 pl-12 text-gray-600 border-l-4 border-blue-200 text-xs">
                                                             {site.site}
                                                         </td>
-                                                        <td className="px-6 py-3 text-center text-gray-400 text-xs">-</td>
-                                                        <td className="px-6 py-3 text-center text-gray-500 text-xs">{site.finalActualEnrollment}</td>
+                                                        <td className="px-6 py-3 text-center text-gray-500 text-xs">{formatNumber(site.enrolled)}</td>
                                                         
                                                         {activeTab === 'assessment' ? (
                                                             <>
@@ -799,16 +1133,24 @@
                                                         ) : activeTab === 'survey' ? (
                                                             <>
                                                                 <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.studentPost} /></td>
-                                                                <td className="px-6 py-3 text-center text-xs">
-                                                                    <PercentCell value={site.educatorPercent} thresholds={{green: 0.75, yellow: 0.60}} />
+                                                                <td className="px-6 py-3 text-center">
+                                                                    <div className="flex items-center justify-center gap-2">
+                                                                        <PercentCell value={site.educatorPercent} thresholds={{green: 0.75, yellow: 0.60}} />
+                                                                        <StatusBadge status={site.educatorStatus} />
+                                                                    </div>
                                                                 </td>
-                                                                <td className="px-6 py-3 text-center text-xs">
-                                                                    <PercentCell value={site.familyPercent} thresholds={{green: 0.25, yellow: 0.15}} />
+                                                                <td className="px-6 py-3 text-center">
+                                                                    <div className="flex items-center justify-center gap-2">
+                                                                        <PercentCell value={site.familyPercent} thresholds={{green: 0.25, yellow: 0.15}} />
+                                                                        <StatusBadge status={site.familyStatus} />
+                                                                    </div>
                                                                 </td>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <td className="px-6 py-3 text-center text-gray-400 text-xs">-</td>
+                                                                <td className="px-6 py-3 text-center text-gray-600">{formatNumber(site.grantAgreementEnrollment)}</td>
+                                                                <td className="px-6 py-3 text-center text-gray-600">{site.finalActualEnrollment !== null ? formatNumber(site.finalActualEnrollment) : '-'}</td>
+                                                                <td className="px-6 py-3 text-center text-xs"><PercentCell value={site.attendance} /></td>
                                                                 <td className="px-6 py-3 text-center text-xs"><CurrencyCell value={site.budget} /></td>
                                                                 <td className="px-6 py-3 text-center text-xs"><CurrencyCell value={site.spent} /></td>
                                                                 <td className="px-6 py-3 text-center text-xs"><CurrencyCell value={site.budget - site.spent} /></td>
@@ -819,6 +1161,13 @@
                                                 ))}
                                             </React.Fragment>
                                         ))}
+                                        {granteeGrouped.length === 0 && (
+                                            <tr>
+                                                <td className="px-6 py-10 text-center text-gray-500" colSpan={activeTab === 'financial' ? 9 : activeTab === 'assessment' ? 7 : 5}>
+                                                    No sites match the current filters.
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
